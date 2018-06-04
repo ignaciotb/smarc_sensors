@@ -43,6 +43,7 @@ private:
     ros::Publisher pcl_pub_;
     ros::Publisher landmark_pub_;
     ros::Subscriber mbes_laser_sub_;
+    ros::Subscriber auv_pose_sub_;
 
     std::string mbes_frame_;
     std::string base_frame_;
