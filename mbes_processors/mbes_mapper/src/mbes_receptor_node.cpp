@@ -6,7 +6,7 @@ int main(int argc, char** argv){
     ros::init(argc, argv, "mbes_receptor_node");
 
     ros::NodeHandle nh;
-    MBESReceptor* mbes_receptor = new MBESReceptor(ros::this_node::getName(), nh);
+    MBESReceptor* mbes_receptor = new MBESReceptor(nh, ros::this_node::getName());
 
     ros::waitForShutdown();
 

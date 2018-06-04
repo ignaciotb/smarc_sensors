@@ -33,7 +33,7 @@ typedef pcl::PointCloud<pcl::PointXYZ> PointCloud;
 class MBESReceptor{
 
 public:
-    MBESReceptor(std::string node_name, ros::NodeHandle &nh);
+    MBESReceptor(ros::NodeHandle &nh, std::string node_name);
     ~MBESReceptor();
 
 private:
@@ -59,20 +59,22 @@ private:
     // Aux
     unsigned int pcl_cnt_;
     int meas_size_;
+    Eigen::Matrix3f Q_mbes_;
 
     // Submaps
-    std::vector<std::tuple<PointCloud, tf::Transform>> mbes_swath_;
+    std::vector<std::tuple<PointCloud, tf::Transform, std::vector<Eigen::Matrix3f>>> mbes_swath_;
     std::vector<tf::Transform> tf_map_meas_vec_;
 
     void MBESLaserCB(const sensor_msgs::LaserScan::ConstPtr& scan_in);
 
     void bcMapSubmapsTF(std::vector<tf::Transform> tfs_meas_map);
 
-    void savePointCloud(PointCloud submap_pcl, std::string file_name);
-
     void pclFuser();
 
-    void init();
+    // Aux methods
+    void savePointCloud(PointCloud submap_pcl, std::string file_name);
+
+    void init(std::vector<double> q_mbes_diag);
 };
 
 #endif // MBES_RECEPTOR_HPP

@@ -1,11 +1,13 @@
 #include "mbes_mapper/mbes_receptor.hpp"
 
 
-MBESReceptor::MBESReceptor(std::string node_name, ros::NodeHandle &nh):
+MBESReceptor::MBESReceptor(ros::NodeHandle &nh, std::string node_name):
     node_name_(node_name), nh_(&nh){
 
     std::string mbes_topic;
     std::string pcl_pub_topic;
+    std::string auv_pose_topic;
+    std::vector<double> Q_mbes_diag;
 
     nh_->param<std::string>((node_name_ + "/base_frame"), base_frame_, "/base_link");
     nh_->param<std::string>((node_name_ + "/mbes_frame"), mbes_frame_, "/mbes_link");
@@ -13,16 +15,19 @@ MBESReceptor::MBESReceptor(std::string node_name, ros::NodeHandle &nh):
     nh_->param<int>((node_name_ + "/submap_size"), meas_size_, 5);
     nh_->param<std::string>((node_name_ + "/mbes_laser_topic"), mbes_topic, "/mbes_laser_topic");
     nh_->param<std::string>((node_name_ + "/pcl_pub_topic"), pcl_pub_topic, "/pcl_pub_topic");
+    nh_->param<std::string>((node_name_ + "/pose_estimate_topic"), auv_pose_topic, "/pose_estimate_topic");
+    nh_->param("meas_mbes_noise_cov_diag", Q_mbes_diag, std::vector<double>());
 
     // RVIZ pcl output for testing
     mbes_laser_sub_ = nh_->subscribe(mbes_topic, 10, &MBESReceptor::MBESLaserCB, this);
+//    auv_pose_sub_ = nh_->subscribe(auv_pose_topic, 10, )
     pcl_pub_ = nh_->advertise<sensor_msgs::PointCloud2> (pcl_pub_topic, 2);
 
-    this->init();
+    this->init(Q_mbes_diag);
     ros::spin();
 }
 
-void MBESReceptor::init(){
+void MBESReceptor::init(std::vector<double> q_mbes_diag){
     tf::TransformListener tf_listener;
     try{
         tf_listener.waitForTransform(base_frame_, mbes_frame_, ros::Time(0), ros::Duration(100));
@@ -33,6 +38,13 @@ void MBESReceptor::init(){
         ROS_ERROR("%s", exception.what());
     }
     ROS_INFO_STREAM(node_name_ << ": launched");
+
+    // Meas noise model covariance
+    Q_mbes_ = Eigen::Matrix3f::Identity();
+    for(unsigned int i=0; i<q_mbes_diag.size(); i++){
+        Q_mbes_(i,i) = q_mbes_diag.at(i);
+    }
+
 }
 
 void MBESReceptor::pclFuser(){
@@ -54,7 +66,7 @@ void MBESReceptor::pclFuser(){
     PointCloud submap_pcl;
 
     // For each ping
-    for(std::tuple<PointCloud, tf::Transform> ping: mbes_swath_){
+    for(std::tuple<PointCloud, tf::Transform, std::vector<Eigen::Matrix3f>> ping: mbes_swath_){
         // Transform from base at t to meas frame
         pcl_ros::transformPointCloud(std::get<0>(ping), tfed_pcl, tf_submap_map * std::get<1>(ping).inverse());
         // Add to submap pcl
@@ -68,7 +80,7 @@ void MBESReceptor::pclFuser(){
     submap_msg.header.stamp = ros::Time::now();
 
     pcl_pub_.publish(submap_msg);
-    savePointCloud(submap_pcl, "submap_" + std::to_string(tf_map_meas_vec_.size()-1) + "_frame.txt");
+    savePointCloud(submap_pcl, "submap_" + std::to_string(tf_map_meas_vec_.size()-1) + "_frame.xyz");
 }
 
 
@@ -127,8 +139,9 @@ void MBESReceptor::MBESLaserCB(const sensor_msgs::LaserScan::ConstPtr& scan_in){
         tf_listener_.lookupTransform(base_frame_, map_frame_, scan_in->header.stamp + ros::Duration().fromSec(scan_in->ranges.size()*scan_in->time_increment), tf_base_map_);
         ROS_DEBUG_STREAM(node_name_ << ": locked transform map --> base at t");
 
-        // Store both PCL and tf at meas time
-        mbes_swath_.emplace_back(pcl_cloud, tf::Transform(tf_base_map_.getRotation().normalize(), tf_base_map_.getOrigin()));
+        // Store MBES swath info: PCL, tf and points covariances at t_meas
+        std::vector<Eigen::Matrix3f> points_cov_vec(pcl_cloud.size(), Q_mbes_);
+        mbes_swath_.emplace_back(pcl_cloud, tf::Transform(tf_base_map_.getRotation().normalize(), tf_base_map_.getOrigin()), points_cov_vec);
     }
     catch(tf::TransformException &exception) {
         ROS_ERROR("%s", exception.what());
