@@ -14,12 +14,14 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <laser_geometry/laser_geometry.h>
 #include <nav_msgs/Odometry.h>
+#include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <mbes_mapper/PoseArrayWithCovariances.h>
 
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
 #include <tf/tf.h>
 #include <tf/transform_datatypes.h>
+#include <tf_conversions/tf_eigen.h>
 
 #include <tuple>
 #include <vector>
@@ -66,7 +68,7 @@ private:
     // Aux
     unsigned int pcl_cnt_;
     int submap_size_;
-    Eigen::Matrix3f Omega_mbes_;    // Information matrix of meas noise model
+    Eigen::Matrix3d Omega_mbes_;    // Information matrix of meas noise model
     std::deque<nav_msgs::Odometry> auv_poses_;
 
     // Submaps
@@ -77,14 +79,16 @@ private:
 
     void bcMapSubmapsTF(std::vector<tf::Transform> tfs_meas_map);
 
-    void pclFuser();
+    void transformPCLCovariances(MbesPing &ping_i, const tf::Transform &tf_submap_baset);
+
+    void submapBuilder(std::vector<MbesPing> mbes_swath);
 
     // Aux methods
     void savePointCloud(PointCloud submap_pcl, std::string file_name);
 
     void auvPoseCB(const nav_msgs::Odometry auv_pose_t);
 
-    void pubPCLPosesWithCov(const PointCloud &ping, const std::vector<Eigen::Matrix3f> &ping_covs);
+    void pubPCLPosesWithCov(const PointCloud &ping, const std::vector<Eigen::Matrix3d> &ping_covs);
 
     void init(std::vector<double> q_mbes_diag);
 

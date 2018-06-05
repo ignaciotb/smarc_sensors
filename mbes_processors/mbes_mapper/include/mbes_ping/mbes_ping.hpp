@@ -19,13 +19,14 @@ class MbesPing{
 public:
 
     MbesPing(PointCloud& mbes_pcl, const tf::Transform& tf_base_map,
-             const Eigen::Matrix3f& Omega_mbes, const std::deque<nav_msgs::Odometry>& auv_poses);
+             const Eigen::Matrix3d &Omega_mbes, const std::deque<nav_msgs::Odometry>& auv_poses);
     ~MbesPing();
 
     PointCloud mbes_pcl_;
     tf::Transform tf_base_map_;
-    Eigen::MatrixXf auv_base_cov_;
-    std::vector<Eigen::Matrix3f> points_cov_vec_;
+    Eigen::MatrixXd auv_base_cov_;
+    std::vector<Eigen::Matrix3d> points_omega_vec_;
+    std::vector<Eigen::Matrix3d> points_cov_vec_;
 
     void auvPoseCovariance(const std::deque<nav_msgs::Odometry> &auv_poses, double time_t);
 

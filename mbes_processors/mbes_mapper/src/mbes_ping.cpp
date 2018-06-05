@@ -2,14 +2,14 @@
 
 MbesPing::MbesPing(PointCloud &mbes_pcl,
                    const tf::Transform &tf_base_map,
-                   const Eigen::Matrix3f& Omega_mbes,
+                   const Eigen::Matrix3d& Omega_mbes,
                    const std::deque<nav_msgs::Odometry> &auv_poses): mbes_pcl_(mbes_pcl), tf_base_map_(tf_base_map){
 
     // Extract cov of AUV pose at ping time t
     auvPoseCovariance(auv_poses, mbes_pcl.header.stamp);
 
     // TODO: make meas noise model dependent on points pose along the ping
-    points_cov_vec_ = std::vector<Eigen::Matrix3f> (mbes_pcl_.size(), Omega_mbes);
+    points_omega_vec_ = std::vector<Eigen::Matrix3d> (mbes_pcl_.size(), Omega_mbes);
 
 }
 
@@ -26,7 +26,7 @@ void MbesPing::auvPoseCovariance(const std::deque<nav_msgs::Odometry>& auv_poses
         }
     }
 
-    auv_base_cov_ = Eigen::MatrixXf(6,6);
+    auv_base_cov_ = Eigen::MatrixXd(6,6);
     // Extract the pose cov of the AUV at ping time t
     for(unsigned int i = 0; i < 6; i++) {
       for(unsigned int j = 0; j < 6; j++) {
