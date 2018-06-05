@@ -27,6 +27,7 @@ MBESReceptor::MBESReceptor(ros::NodeHandle &nh, std::string node_name):
     // RVIZ pcl output for testing
     pcl_pub_ = nh_->advertise<sensor_msgs::PointCloud2> (pcl_pub_topic, 2);
     pcl_poses_pub_ = nh_->advertise<geometry_msgs::PoseWithCovarianceStamped>(pcl_poses_topic, 10);
+    vis_pub_ = nh_->advertise<visualization_msgs::MarkerArray>("/covariance_marker", 10);
 
     this->init(Q_mbes_diag);
     ros::spin();
@@ -95,28 +96,39 @@ void MBESReceptor::bcMapSubmapsTF(std::vector<tf::Transform> tfs_meas_map){
     }
 }
 
-void MBESReceptor::pubPCLPosesWithCov(const PointCloud& ping, const std::vector<Eigen::Matrix3d> &ping_covs){
+void MBESReceptor::pubPCLPosesWithCov(std::string meas_frame,
+                                      const PointCloud& ping_pcl_transformed,
+                                      const MbesPing& ping,
+                                      visualization_msgs::MarkerArray& marker_array,
+                                      unsigned int pings_cnt){
 
-    // Parse pcl points positions and covariances
-    int point_cnt = 0;
-    geometry_msgs::PoseWithCovarianceStamped pcl_point;
-    pcl_point.header.stamp = ros::Time::now();
-    pcl_point.header.frame_id = "submap_" + std::to_string(tf_map_meas_vec_.size()-1) + "_frame";
-    for(pcl::PointXYZ point: ping){
-        pcl_point.pose.pose.position.x = point.x;
-        pcl_point.pose.pose.position.y = point.y;
-        pcl_point.pose.pose.position.z = point.z;
-        // Extract covariance
-        for(unsigned int i = 0; i < 3; i++) {
-          for(unsigned int j = 0; j < 3; j++) {
-            pcl_point.pose.covariance[i*3 + j] = ping_covs.at(point_cnt)(i,j);
-          }
-        }
+    unsigned int point_cnt = 0;
+    for(pcl::PointXYZ point: ping_pcl_transformed){
+        visualization_msgs::Marker marker;
+        marker.header.frame_id = meas_frame;
+        marker.header.stamp = ros::Time();
+        marker.ns = "covs";
+        marker.id = pings_cnt * ping_pcl_transformed.size() + point_cnt;
+        marker.type = visualization_msgs::Marker::SPHERE;
+        marker.action = visualization_msgs::Marker::ADD;
+        marker.pose.position.x = point.x;
+        marker.pose.position.y = point.y;
+        marker.pose.position.z = point.z;
+        marker.pose.orientation.x = 1.0;
+        marker.pose.orientation.y = 0.0;
+        marker.pose.orientation.z = 0.0;
+        marker.pose.orientation.w = 0.0;
+        marker.scale.x = ping.points_cov_vec_.at(point_cnt)(0,0);
+        marker.scale.y = ping.points_cov_vec_.at(point_cnt)(1,1);
+        marker.scale.z = ping.points_cov_vec_.at(point_cnt)(2,2);
+        marker.color.a = 0.5;
+        marker.color.r = 1.0;
+        marker.color.g = 1.0;
+        marker.color.b = 0.0;
 
+        marker_array.markers.push_back(marker);
         point_cnt += 1;
-        pcl_poses_pub_.publish(pcl_point);
     }
-//    std::cout << "Number of points in ping " << point_cnt << std::endl;
 }
 
 void MBESReceptor::transformPCLCovariances(MbesPing &ping_i, const tf::Transform& tf_submap_baset){
@@ -157,6 +169,7 @@ void MBESReceptor::submapBuilder(std::vector<MbesPing> mbes_swath){
     ROS_INFO("Submap constructor called");
     tf::Transform tf_submap_map = mbes_swath.at((submap_size_-1)/2).tf_base_map_;
     tf_map_meas_vec_.push_back(tf_submap_map.inverse());
+    std::string meas_frame = "submap_" + std::to_string(tf_map_meas_vec_.size()-1) + "_frame";
 
     // Broadcast all meas frames
     bcMapSubmapsTF(tf_map_meas_vec_);
@@ -165,8 +178,10 @@ void MBESReceptor::submapBuilder(std::vector<MbesPing> mbes_swath){
     PointCloud tfed_pcl;
     PointCloud submap_pcl;
     tf::Transform tf_submap_baset;
+    visualization_msgs::MarkerArray marker_array;
 
     // For each ping
+    unsigned int pings_cnt = 0;
     for(MbesPing ping: mbes_swath){
         // Transform subframe_t to submap_frame
         tf_submap_baset = tf_submap_map * ping.tf_base_map_.inverse();
@@ -177,19 +192,23 @@ void MBESReceptor::submapBuilder(std::vector<MbesPing> mbes_swath){
         // Add to submap pcl
         submap_pcl += tfed_pcl;
         // Publish PCL
-        pubPCLPosesWithCov(tfed_pcl, ping.points_cov_vec_);
+        pubPCLPosesWithCov(meas_frame, tfed_pcl, ping, marker_array, pings_cnt);
+        pings_cnt += 1;
     }
+
+    vis_pub_.publish(marker_array);
+
 
     // Create ROS msg and publish
     sensor_msgs::PointCloud2 submap_msg;
     pcl::toROSMsg(submap_pcl, submap_msg);
-    submap_msg.header.frame_id = "submap_" + std::to_string(tf_map_meas_vec_.size()-1) + "_frame";
+    submap_msg.header.frame_id = meas_frame;
     submap_msg.header.stamp = ros::Time::now();
 
     pcl_pub_.publish(submap_msg);
 
     // Save PCL to external file for testing
-//    savePointCloud(submap_pcl, "submap_" + std::to_string(tf_map_meas_vec_.size()-1) + "_frame.xyz");
+//    savePointCloud(submap_pcl, meas_frame" + ".xyz");
 }
 
 

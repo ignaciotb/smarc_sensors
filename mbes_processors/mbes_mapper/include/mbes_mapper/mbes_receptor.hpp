@@ -15,6 +15,8 @@
 #include <laser_geometry/laser_geometry.h>
 #include <nav_msgs/Odometry.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
+#include <visualization_msgs/Marker.h>
+#include <visualization_msgs/MarkerArray.h>
 #include <mbes_mapper/PoseArrayWithCovariances.h>
 
 #include <tf/transform_listener.h>
@@ -50,6 +52,7 @@ private:
     ros::Publisher pcl_pub_;
     ros::Publisher pcl_poses_pub_;
     ros::Publisher landmark_pub_;
+    ros::Publisher vis_pub_;
     ros::Subscriber mbes_laser_sub_;
     ros::Subscriber auv_pose_sub_;
 
@@ -88,7 +91,10 @@ private:
 
     void auvPoseCB(const nav_msgs::Odometry auv_pose_t);
 
-    void pubPCLPosesWithCov(const PointCloud &ping, const std::vector<Eigen::Matrix3d> &ping_covs);
+    void pubPCLPosesWithCov(std::string meas_frame,
+                            const PointCloud& ping_pcl_transformed,
+                            const MbesPing& ping,
+                            visualization_msgs::MarkerArray& marker_array, unsigned int pings_cnt);
 
     void init(std::vector<double> q_mbes_diag);
 
