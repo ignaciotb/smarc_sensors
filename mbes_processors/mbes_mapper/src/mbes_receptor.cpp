@@ -7,6 +7,7 @@ MBESReceptor::MBESReceptor(ros::NodeHandle &nh, std::string node_name):
     std::string mbes_topic;
     std::string pcl_pub_topic;
     std::string auv_pose_topic;
+    std::string pcl_poses_topic;
     std::vector<double> Q_mbes_diag;
 
     nh_->param<std::string>((node_name_ + "/base_frame"), base_frame_, "/base_link");
@@ -16,6 +17,7 @@ MBESReceptor::MBESReceptor(ros::NodeHandle &nh, std::string node_name):
     nh_->param<std::string>((node_name_ + "/mbes_laser_topic"), mbes_topic, "/mbes_laser_topic");
     nh_->param<std::string>((node_name_ + "/pcl_pub_topic"), pcl_pub_topic, "/pcl_pub_topic");
     nh_->param<std::string>((node_name_ + "/pose_estimate_topic"), auv_pose_topic, "/pose_estimate_topic");
+    nh_->param<std::string>((node_name_ + "/pcl_poses_topic"), pcl_poses_topic, "/pcl_poses_topic");
     nh_->param("meas_mbes_noise_cov_diag", Q_mbes_diag, std::vector<double>());
 
     // Subscribers for MBES pings and AUV poses
@@ -24,6 +26,7 @@ MBESReceptor::MBESReceptor(ros::NodeHandle &nh, std::string node_name):
 
     // RVIZ pcl output for testing
     pcl_pub_ = nh_->advertise<sensor_msgs::PointCloud2> (pcl_pub_topic, 2);
+    pcl_poses_pub_ = nh_->advertise<geometry_msgs::PoseWithCovariance>(pcl_poses_topic, 10);
 
     this->init(Q_mbes_diag);
     ros::spin();
@@ -65,7 +68,7 @@ void MBESReceptor::init(std::vector<double> q_mbes_diag){
 
 void MBESReceptor::savePointCloud(PointCloud submap_pcl, std::string file_name){
 
-    std::ofstream myfile ("/home/nacho/Documents/Varios" + file_name);
+    std::ofstream myfile ("/home/nacho/Documents/Varios/" + file_name);
     if (myfile.is_open()){
         for(unsigned int i=0; i<submap_pcl.points.size(); i++){
             myfile << submap_pcl.points.at(i).x << " " << submap_pcl.points.at(i).y << " " << submap_pcl.points.at(i).z << "\n";
@@ -92,6 +95,58 @@ void MBESReceptor::bcMapSubmapsTF(std::vector<tf::Transform> tfs_meas_map){
     }
 }
 
+void MBESReceptor::pubPCLPosesWithCov(const PointCloud& ping, const std::vector<Eigen::Matrix3f>& ping_covs){
+
+    // Parse pcl points positions and covariances
+    int point_cnt = 0;
+    geometry_msgs::PoseWithCovariance pcl_point;
+//    pcl_point.header.stamp = ros::Time::now();
+//    pcl_point.header.frame_id = "submap_" + std::to_string(tf_map_meas_vec_.size()-1) + "_frame";
+    for(pcl::PointXYZ point: ping){
+        pcl_point.pose.position.x = point.x;
+        pcl_point.pose.position.y = point.y;
+        pcl_point.pose.position.z = point.z;
+
+        for(unsigned int i = 0; i < 3; i++) {
+          for(unsigned int j = 0; j < 3; j++) {
+            pcl_point.covariance[i*3 + j] = ping_covs.at(point_cnt)(i,j);
+          }
+        }
+
+        point_cnt += 1;
+        pcl_poses_pub_.publish(pcl_point);
+    }
+    std::cout << "Number of points in ping " << point_cnt << std::endl;
+
+
+
+//    // Construct msg header
+//    nav_msgs::Odometry pcl_pose_msg;
+//    pcl_pose_msg.header.stamp = ros::Time::now();
+//    pcl_pose_msg.header.frame_id = "submap_" + std::to_string(tf_map_meas_vec_.size()-1) + "_frame";
+
+//    // Parse pcl points positions and covariances
+//    int point_cnt = 0;
+//    tf::Quaternion q_auv_t = tf::createQuaternionFromRPY(0, -M_PI/2, 0).normalize();
+//    geometry_msgs::Quaternion odom_quat;
+//    tf::quaternionTFToMsg(q_auv_t, odom_quat);
+
+//    for(pcl::PointXYZ point: ping){
+//        pcl_pose_msg.pose.pose.position.x = point.x;
+//        pcl_pose_msg.pose.pose.position.y = point.y;
+//        pcl_pose_msg.pose.pose.position.z = point.z;
+//        pcl_pose_msg.pose.pose.orientation = odom_quat;
+//        for(unsigned int i = 0; i < 3; i++) {
+//          for(unsigned int j = 0; j < 3; j++) {
+//            pcl_pose_msg.pose.covariance[i*3 + j] = ping_covs.at(point_cnt)(i,j);
+//          }
+//        }
+
+//        point_cnt += 1;
+//        pcl_poses_pub_.publish(pcl_pose_msg);
+//    }
+
+}
 
 void MBESReceptor::pclFuser(){
 
@@ -113,6 +168,7 @@ void MBESReceptor::pclFuser(){
         pcl_ros::transformPointCloud(ping.mbes_pcl_, tfed_pcl, tf_submap_map * ping.tf_base_map_.inverse());
         // Add to submap pcl
         submap_pcl += tfed_pcl;
+//        pubPCLPosesWithCov(tfed_pcl, ping.points_cov_vec_);
     }
 
     // Create ROS msg and publish
@@ -124,7 +180,7 @@ void MBESReceptor::pclFuser(){
     pcl_pub_.publish(submap_msg);
 
     // Save PCL to external file for testing
-    savePointCloud(submap_pcl, "submap_" + std::to_string(tf_map_meas_vec_.size()-1) + "_frame.xyz");
+//    savePointCloud(submap_pcl, "submap_" + std::to_string(tf_map_meas_vec_.size()-1) + "_frame.xyz");
 }
 
 
@@ -162,7 +218,7 @@ void MBESReceptor::MBESLaserCB(const sensor_msgs::LaserScan::ConstPtr& scan_in){
         // Store MBES swath info: PCL, tf and points covariances at t_meas
         mbes_swath_.emplace_back(MbesPing(pcl_cloud,
                                           tf::Transform(tf_base_map_.getRotation().normalize(), tf_base_map_.getOrigin()),
-                                          Omega_mbes_,
+                                          Omega_mbes_.inverse(),    // TODO: remove the inverse()!! Just for testing
                                           auv_poses_));
     }
     catch(tf::TransformException &exception) {

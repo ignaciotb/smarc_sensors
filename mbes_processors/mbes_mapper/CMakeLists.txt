@@ -17,21 +17,30 @@ endif()
 
 find_package(catkin REQUIRED COMPONENTS
     roscpp
+    message_generation
     tf
     tf_conversions
     pcl_ros
     pcl_conversions
     laser_geometry
+    std_msgs
+    geometry_msgs
+)
+
+add_message_files(FILES
+  PoseArrayWithCovariances.msg
 )
 
 #find_package(OpenCV REQUIRED)
 
 #find_package(PCL REQUIRED)
 
+generate_messages(DEPENDENCIES std_msgs geometry_msgs)
+
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES mbes_mapper
-  CATKIN_DEPENDS pcl_ros roscpp tf
+  CATKIN_DEPENDS pcl_ros roscpp tf message_runtime std_msgs geometry_msgs
 #  DEPENDS system_lib
 )
 

@@ -14,6 +14,7 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <laser_geometry/laser_geometry.h>
 #include <nav_msgs/Odometry.h>
+#include <mbes_mapper/PoseArrayWithCovariances.h>
 
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
@@ -45,6 +46,7 @@ private:
     ros::NodeHandle* nh_;
 
     ros::Publisher pcl_pub_;
+    ros::Publisher pcl_poses_pub_;
     ros::Publisher landmark_pub_;
     ros::Subscriber mbes_laser_sub_;
     ros::Subscriber auv_pose_sub_;
@@ -81,6 +83,8 @@ private:
     void savePointCloud(PointCloud submap_pcl, std::string file_name);
 
     void auvPoseCB(const nav_msgs::Odometry auv_pose_t);
+
+    void pubPCLPosesWithCov(const PointCloud &ping, const std::vector<Eigen::Matrix3f> &ping_covs);
 
     void init(std::vector<double> q_mbes_diag);
 
