@@ -21,7 +21,7 @@
             <param name="mbes_frame" value="/$(arg namespace)/mbes_sonardown_link"/>
             <param name="submap_size" value="31"/>
             <param name="pose_estimate_topic" value="/$(arg namespace)/$(arg nav_name)/pose_estimate"/>
-            <rosparam param="/$(arg namespace)/meas_mbes_noise_cov_diag">[100.0, 100.0, 100.0]</rosparam>
+            <rosparam param="/$(arg namespace)/meas_mbes_noise_cov_diag">[10.0, 10.0, 10.0]</rosparam>
 
             <param name="mbes_laser_topic" value="/$(arg namespace)/mbes_laser"/>
             <param name="pcl_pub_topic" value="/$(arg namespace)/mbes_pcl"/>

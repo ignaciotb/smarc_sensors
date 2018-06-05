@@ -41,6 +41,10 @@ catkin_package(
 
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
+add_library(ping_object
+    src/mbes_ping.cpp
+)
+
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
@@ -57,6 +61,7 @@ add_dependencies(mbes_pcl_receptor
     )
 
 target_link_libraries(mbes_pcl_receptor
+    ping_object
     ${catkin_LIBRARIES}
     ${PCL_LIBRARIES}
     )

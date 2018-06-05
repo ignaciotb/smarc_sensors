@@ -13,6 +13,7 @@
 #include <sensor_msgs/LaserScan.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <laser_geometry/laser_geometry.h>
+#include <nav_msgs/Odometry.h>
 
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
@@ -25,8 +26,11 @@
 #include <eigen3/Eigen/Core>
 #include <eigen3/Eigen/Dense>
 
+#include <queue>
 #include <fstream>
 #include <iostream>
+
+#include <mbes_ping/mbes_ping.hpp>
 
 typedef pcl::PointCloud<pcl::PointXYZ> PointCloud;
 
@@ -59,11 +63,12 @@ private:
 
     // Aux
     unsigned int pcl_cnt_;
-    int meas_size_;
-    Eigen::Matrix3f Q_mbes_;
+    int submap_size_;
+    Eigen::Matrix3f Omega_mbes_;    // Information matrix of meas noise model
+    std::deque<nav_msgs::Odometry> auv_poses_;
 
     // Submaps
-    std::vector<std::tuple<PointCloud, tf::Transform, std::vector<Eigen::Matrix3f>>> mbes_swath_;
+    std::vector<MbesPing> mbes_swath_;
     std::vector<tf::Transform> tf_map_meas_vec_;
 
     void MBESLaserCB(const sensor_msgs::LaserScan::ConstPtr& scan_in);
@@ -75,7 +80,10 @@ private:
     // Aux methods
     void savePointCloud(PointCloud submap_pcl, std::string file_name);
 
+    void auvPoseCB(const nav_msgs::Odometry auv_pose_t);
+
     void init(std::vector<double> q_mbes_diag);
+
 };
 
 #endif // MBES_RECEPTOR_HPP
